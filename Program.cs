@@ -5,9 +5,17 @@ using System.Media;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace WarThreads
 {
+    struct Point
+    {
+        public int X { get; set; }
+
+        public int Y { get; set; }
+    }
+
     class Program
     {
         private const int CONSOLE_WIDTH = 80, CONSOLE_HEIGHT = 25;
@@ -16,6 +24,11 @@ namespace WarThreads
         private const int FORWARD_DIRECTION = 1, REVERSE_DIRECTION = -1;
         private const int START_GUN_X = CONSOLE_WIDTH / 2, START_GUN_Y = CONSOLE_HEIGHT - 1;
         private const int HIT_CHECK_SLEEP_TIME = 40;
+        private const int MAX_TRIES_TO_HIT = 15;
+        private const int FREEZETIME = 15000;
+        private const int MAX_RANDOM_VALUE = 100;
+        private const int SPAWN_GAP = 1000;
+        private const int SPAWN_LINE_RANGE = 10;
 
         private static int miss = 0, hit = 0;
 
@@ -23,8 +36,11 @@ namespace WarThreads
 
         private static readonly char[] BAD_GAY_CHAR = new char[] { '-', '\\', '|', '/' };
 
+        private static Random random = new Random();
 
         private static Mutex screenLock = new Mutex();
+
+        private static EventWaitHandle startEvent = new EventWaitHandle(false, EventResetMode.ManualReset);
 
         private static void SetConsoleSize()
         {
@@ -56,20 +72,32 @@ namespace WarThreads
         /// </summary>
         /// <param name="x"> Позиция столбца, в котором находится враг. </param>
         /// <param name="dir"> Направление движения врага. </param>
-        /// <returns> Если враг виден на экране - True, иначе - False. </returns>
+        /// <returns> Если враг виден на экране - true, иначе - false. </returns>
         private static bool IsBadGuyVisible(int x, int dir) => dir == FORWARD_DIRECTION && x != RIGHT_SIDE || dir == REVERSE_DIRECTION && x != LEFT_SIDE;
 
+        /// <summary>
+        /// Проверка на попадание по врага.
+        /// </summary>
+        /// <param name="x"> Позиция столбца, в котором находится враг. </param>
+        /// <param name="y"> Позиция строки, в которой находится враг. </param>
+        /// <returns> Если во врага попали - true, иначе - false. </returns>
         private static bool IsHitted(int x, int y)
         {
-            for (int i = 0; i < 15; i++) // 15?
+            // на каждой итерации в цикле проверяем попадание по врагу
+            for (int i = 0; i < MAX_TRIES_TO_HIT; i++)
             {
+                // ожидание
                 Thread.Sleep(HIT_CHECK_SLEEP_TIME);
-                if ('?' == BULLET_CHAR) // getat()
-                {
-                    return true;
-                }
+                // если во врага попали, то возвращаем true
+                if (GetAt(x, y) == BULLET_CHAR) return true;
             }
+            // возвращаем false (во врага не попали)
             return false;
+        }
+
+        public static char GetAt(int x, int y)
+        {
+            return '?';
         }
 
         /// <summary>
@@ -95,40 +123,44 @@ namespace WarThreads
         /// Поток противника.
         /// </summary>
         /// <param name="y"> Позиция строки, в которой появляется враг. </param>
-        private static void BadGuy(int y)
+        private static void BadGuy(object y)
         {
+            Point position = new Point()
+            {
+                Y = (int)y
+            };
+
             // позиция столбца, в которой находится враг
-            int x;
             // напрвление движения врага
             int direction;
 
             // если позиция строки, где появляется враг, является четным числом
-            if (y % 2 == 0)
+            if (position.Y % 2 == 0)
             {
                 // то враг появляется с левой стороны экрана
-                x = LEFT_SIDE;
+                position.X = LEFT_SIDE;
                 // и двигается вправо
                 direction = FORWARD_DIRECTION;
             }
             else
             {
                 // иначе враг появляется с правой стороны экрана
-                x = RIGHT_SIDE;
+                position.X = RIGHT_SIDE;
                 // и двигается влево
                 direction = REVERSE_DIRECTION;
             }
 
             // пока противник находится в пределах экрана
-            while(IsBadGuyVisible(x, direction))
+            while(IsBadGuyVisible(position.X, direction))
             {
                 // анимация движения врага
-                WriteAt(x, y, BAD_GAY_CHAR[x % 4]);
+                WriteAt(position.X, position.Y, BAD_GAY_CHAR[position.X % 4]);
 
                 // проверка попадания по врагу 
-                bool hitted = IsHitted(x, y);
+                bool hitted = IsHitted(position.X, position.Y);
 
                 // удаляем кадр анимации врага с экрана
-                WriteAt(x, y, WHITESPACE);
+                WriteAt(position.X, position.Y, WHITESPACE);
 
                 // если во врага попали, то
                 if (hitted)
@@ -144,7 +176,24 @@ namespace WarThreads
                 }
 
                 // перемещаем врага в следующую позицию
-                x += direction;
+                position.X += direction;
+            }
+        }
+
+        private static bool Spawn() => random.Next(MAX_RANDOM_VALUE) < (hit + miss) / 25 + 20;
+
+        private static void BadGuys()
+        {
+            startEvent.WaitOne(FREEZETIME);
+
+            while (true)
+            {
+                if (Spawn())
+                {
+                    Thread badGuyThread = new Thread(BadGuy);
+                    badGuyThread.Start(random.Next(SPAWN_LINE_RANGE));
+                }
+                Thread.Sleep(SPAWN_GAP);
             }
         }
 
