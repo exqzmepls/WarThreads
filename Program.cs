@@ -11,7 +11,7 @@ namespace WarThreads
     {
         private const int
             CONSOLE_WIDTH = 80, CONSOLE_HEIGHT = 25, // ширина и высота консоли
-            MAX_MISS = 1, // максимально допустимое количество промахов
+            MAX_MISS = 30, // максимально допустимое количество промахов
             LEFT_SIDE_BORDER = 0, RIGHT_SIDE_BORDER = CONSOLE_WIDTH - 1, // граница левой и правой сторны консоли
             FORWARD_DIRECTION = 1, REVERSE_DIRECTION = -1, // прямое и обратное направления движения врагов
             START_GUN_X = CONSOLE_WIDTH / 2, START_GUN_Y = CONSOLE_HEIGHT - 1, // начальные координаты пушки
@@ -59,16 +59,25 @@ namespace WarThreads
         // Главный поток
         private static Thread mainThread = Thread.CurrentThread;
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="hConsoleOutput"></param>
-        /// <param name="lpCharacter"></param>
-        /// <param name="nLength"></param>
-        /// <param name="dwReadCoord"></param>
-        /// <param name="lpNumberOfCharsRead"></param>
-        /// <returns></returns>
         /// Определяем управляемый метод, имеющий точно такую же сигнатуру, что и неуправляемый.
+        /// <summary>
+        /// Извлекает дескриптор для указанного стандартного устройства.
+        /// </summary>
+        /// <param name="nStdHandle"> Стандартное устройство. </param>
+        /// <returns> Дескриптор для указанного устройства или перенаправленный дескриптор. </returns>
+        [DllImport("kernel32", SetLastError = true)]
+        private static extern IntPtr GetStdHandle(int nStdHandle);
+
+        /// Определяем управляемый метод, имеющий точно такую же сигнатуру, что и неуправляемый.
+        /// <summary>
+        /// Копирует ряд символов из последовательных ячеек буфера экрана консоли, начиная с указанного расположения.
+        /// </summary>
+        /// <param name="hConsoleOutput"> Дескриптор буфера экрана консоли. </param>
+        /// <param name="lpCharacter"> Указатель на буфер, который получает символы, считанные из буфера экрана консоли. </param>
+        /// <param name="nLength"> Число ячеек символов буфера экрана, из которых производится чтение. </param>
+        /// <param name="dwReadCoord"> Координаты первой ячейки в буфере экрана консоли, из которой производится чтение. </param>
+        /// <param name="lpNumberOfCharsRead"> Указатель на переменную, которая получает количество фактически считанных символов. </param>
+        /// <returns> Строка считанных символов. </returns>
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool ReadConsoleOutputCharacter(IntPtr hConsoleOutput, [Out] StringBuilder lpCharacter, uint nLength, COORD dwReadCoord, out uint lpNumberOfCharsRead);
 
@@ -79,14 +88,6 @@ namespace WarThreads
             public short X;
             public short Y;
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="nStdHandle"></param>
-        /// <returns></returns>
-        [DllImport("kernel32", SetLastError = true)]
-        private static extern IntPtr GetStdHandle(int nStdHandle);
 
         /// <summary>
         /// Устанавливаем размер окна и буфера консоли.
